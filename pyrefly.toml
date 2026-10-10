@@ -1,0 +1,5 @@
+python-interpreter-path = "d:/Smart Crop Recommendation and Yield Prediction System/.venv/Scripts/python.exe"
+site-package-path = [
+    "d:/Smart Crop Recommendation and Yield Prediction System/.venv/Lib/site-packages"
+]
+search-path = ["backend"]
