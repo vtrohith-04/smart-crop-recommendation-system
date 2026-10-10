@@ -36,7 +36,7 @@ classifier = joblib.load(rec_model_path)
 regressor = joblib.load(yield_model_path)
 
 # -------------------------------------------------------------
-# 3. Evaluate Crop Recommendation Model
+# 3. Evaluate Crop Recommendation Model on Held-out 20% Test Split
 # -------------------------------------------------------------
 accuracy = 0.0
 precision = 0.0
@@ -50,16 +50,16 @@ if os.path.exists(crop_rec_data_path):
     X_rec = df_rec[['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']]
     y_rec = df_rec['label']
     
-    # Scale features using the loaded scaler
-    X_rec_scaled = scaler.transform(X_rec)
-    
-    # Perform same train-test split for evaluation
+    # Reproduce exact same 80/20 train/test split with stratify=y_rec and random_state=42
     _, X_test_rec, _, y_test_rec = train_test_split(
-        X_rec_scaled, y_rec, test_size=0.2, random_state=42
+        X_rec, y_rec, test_size=0.2, random_state=42, stratify=y_rec
     )
     
-    # Predict and evaluate
-    y_pred_rec = classifier.predict(X_test_rec)
+    # Scale test features using the loaded scaler (fitted on training data only)
+    X_test_rec_scaled = scaler.transform(X_test_rec)
+    
+    # Predict and evaluate on held-out test data
+    y_pred_rec = classifier.predict(X_test_rec_scaled)
     accuracy = accuracy_score(y_test_rec, y_pred_rec)
     precision = precision_score(y_test_rec, y_pred_rec, average='weighted')
     recall = recall_score(y_test_rec, y_pred_rec, average='weighted')
@@ -70,7 +70,7 @@ else:
     print(f"Error: Could not find crop recommendation dataset at {crop_rec_data_path}")
 
 # -------------------------------------------------------------
-# 4. Evaluate Crop Yield Prediction Model
+# 4. Evaluate Crop Yield Prediction Model on Held-out 20% Test Split
 # -------------------------------------------------------------
 r2 = 0.0
 mae = 0.0
@@ -80,7 +80,7 @@ rmse = 0.0
 if os.path.exists(crop_yield_data_path):
     df_yield = pd.read_csv(crop_yield_data_path)
     
-    # Clean data exactly as in train_models.py
+    # Clean data matching train_models.py
     df_yield['Crop'] = df_yield['Crop'].astype(str).str.strip().str.lower()
     df_yield['State'] = df_yield['State'].astype(str).str.strip().str.lower()
     df_yield['Season'] = df_yield['Season'].astype(str).str.strip().str.lower()
@@ -98,12 +98,12 @@ if os.path.exists(crop_yield_data_path):
     # Target = log1p(Yield)
     y_yield = np.log1p(df_yield['Yield'])
     
-    # Perform same train-test split for evaluation
+    # Reproduce exact same 80/20 train/test split with random_state=42
     _, X_test_yield, _, y_test_yield = train_test_split(
         X_yield, y_yield, test_size=0.2, random_state=42
     )
     
-    # Predict and evaluate
+    # Predict and evaluate on held-out test data
     y_pred_yield = regressor.predict(X_test_yield)
     r2 = r2_score(y_test_yield, y_pred_yield)
     mae = mean_absolute_error(y_test_yield, y_pred_yield)
@@ -117,7 +117,7 @@ else:
 # -------------------------------------------------------------
 print("==================================================")
 print("SMART CROP RECOMMENDATION SYSTEM")
-print("MODEL EVALUATION REPORT")
+print("MODEL EVALUATION REPORT (HELD-OUT 20% TEST SET)")
 print("==================================================")
 print()
 print("Crop Recommendation (Classification)")
@@ -137,7 +137,7 @@ print("--------------------------------------------------")
 print()
 print("Crop Yield Prediction (Regression)")
 print()
-print(f"R\u00b2 Score             : {r2:.6f}")
+print(f"R² Score             : {r2:.6f}")
 print(f"MAE                  : {mae:.6f}")
 print(f"MSE                  : {mse:.6f}")
 print(f"RMSE                 : {rmse:.6f}")

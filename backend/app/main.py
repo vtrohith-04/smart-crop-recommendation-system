@@ -99,8 +99,8 @@ async def health_check():
         "api_version": "1.0.0",
         "fallback_mode_active": model_loader.is_mock,
         "models_loaded": {
-            "crop_recommendation": "MockEngine" if model_loader.is_mock else "CatBoostClassifier",
-            "yield_prediction": "MockEngine" if model_loader.is_mock else "XGBoostRegressor"
+            "crop_recommendation": "MockEngine" if model_loader.is_mock else "RandomForestClassifier",
+            "yield_prediction": "MockEngine" if model_loader.is_mock else "RandomForestRegressor"
         }
     }
 
@@ -151,13 +151,15 @@ async def predict_combined(payload: CombinedPredictionInput):
         recommendation_confidence = rec_result["confidence"]
 
         # 2. Extract recommended crop name and compile yield prediction payload
-        # Rain for yield defaults to the rainfall of recommendation (as annual equivalent estimation)
+        # Annual rainfall is dynamically resolved from historical state meteorological averages
+        annual_rainfall = model_loader.get_state_rainfall(payload.state)
+
         yield_payload = YieldPredictionInput(
             crop=recommended_crop,
             state=payload.state,
             season=payload.season,
             area=payload.area,
-            annual_rainfall=payload.rainfall * 5.0,  # Scale rain to represent typical annual scale
+            annual_rainfall=annual_rainfall,
             fertilizer=payload.fertilizer,
             pesticide=payload.pesticide
         )

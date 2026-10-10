@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import joblib
 import numpy as np
@@ -64,10 +65,6 @@ class MockCropRecommendationModel:
 class MockYieldPredictionModel:
     """Mock regressor that simulates the Crop Yield prediction model using base yields and inputs."""
     def predict(self, features: np.ndarray) -> np.ndarray:
-        # We expect inputs reflecting either preprocessed numerical features or categorical representations.
-        # Let's write a simple simulation: yield based on crop type, fertilizer, and rainfall.
-        # If input is a dictionary or a structured array, we can decode it.
-        # For simplicity, we implement a robust fallback prediction directly in the prediction service.
         return np.array([2.5])
 
 
@@ -84,13 +81,16 @@ class ModelLoader:
         self.yield_model = None
         self.scaler = None
         self.encoder = None
+        self.state_rainfall = {}
+        self.national_rainfall_mean = 1437.76
         self.is_mock = False
 
     def load_artifacts(self) -> None:
-        """Attempts to load model artifacts from disk; falls back to mock models if missing."""
+        """Attempts to load model artifacts and lookup tables from disk; falls back to mock models if missing."""
         rec_model_path = os.path.join(self.models_dir, "crop_recommendation", "v1.0.0", "classifier.joblib")
         yield_model_path = os.path.join(self.models_dir, "yield_prediction", "v1.0.0", "regressor.joblib")
         scaler_path = os.path.join(self.models_dir, "crop_recommendation", "v1.0.0", "pipeline.joblib")
+        state_rainfall_path = os.path.join(self.models_dir, "yield_prediction", "v1.0.0", "state_rainfall.json")
 
         logger.info(f"Checking for ML models in path: {os.path.abspath(self.models_dir)}")
         
@@ -131,6 +131,31 @@ class ModelLoader:
                 logger.error(f"Error loading Preprocessing Pipeline: {e}.")
         else:
             logger.warning("Preprocessing Pipeline not found. Scaling will be bypassed or mocked.")
+
+        # Load State Annual Rainfall Lookup Table
+        if os.path.exists(state_rainfall_path):
+            try:
+                with open(state_rainfall_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.national_rainfall_mean = data.get("national_mean_rainfall", 1437.76)
+                    self.state_rainfall = data.get("state_annual_rainfall_means", {})
+                logger.info(f"Successfully loaded State Annual Rainfall Lookup Table ({len(self.state_rainfall)} states).")
+            except Exception as e:
+                logger.error(f"Error loading State Rainfall Lookup Table: {e}.")
+        else:
+            logger.warning("State Rainfall Lookup Table not found. Defaulting to national mean fallback.")
+
+    def get_state_rainfall(self, state: str) -> float:
+        """Retrieves mean annual rainfall for a state or logs a clear warning and falls back to national mean."""
+        state_clean = state.strip().lower()
+        if self.state_rainfall and state_clean in self.state_rainfall:
+            return float(self.state_rainfall[state_clean])
+        
+        logger.warning(
+            f"State '{state}' was not found in the historical annual rainfall dataset. "
+            f"Falling back to national mean ({self.national_rainfall_mean:.2f} mm)."
+        )
+        return float(self.national_rainfall_mean)
 
 # Global model loader instance
 model_loader = ModelLoader()

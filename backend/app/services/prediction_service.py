@@ -51,23 +51,24 @@ class PredictionService:
     
     @staticmethod
     def get_crop_recommendation(payload: CropRecommendationInput) -> Dict[str, Any]:
-        # Convert input Pydantic model to array
-        feature_vector = np.array([[
-            payload.N,
-            payload.P,
-            payload.K,
-            payload.temperature,
-            payload.humidity,
-            payload.ph,
-            payload.rainfall
-        ]])
+        # Convert input Pydantic model to DataFrame with matching feature names
+        feature_df = pd.DataFrame([{
+            'N': payload.N,
+            'P': payload.P,
+            'K': payload.K,
+            'temperature': payload.temperature,
+            'humidity': payload.humidity,
+            'ph': payload.ph,
+            'rainfall': payload.rainfall
+        }])
 
+        feature_vector = feature_df
         # Preprocessing scaling (if actual scaler is loaded)
         if model_loader.scaler is not None:
             try:
-                feature_vector = model_loader.scaler.transform(feature_vector)
+                feature_vector = model_loader.scaler.transform(feature_df)
             except Exception:
-                # Fallback if scaling fails due to shape mismatch
+                # Fallback if scaling fails
                 pass
 
         # Execute Prediction
