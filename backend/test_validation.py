@@ -90,7 +90,7 @@ run_get("/health")
 print("\n--- Supported Crops Endpoint ---")
 status, crops_data = run_get("/supported-crops")
 assert status == 200
-assert crops_data["count"] == 51
+assert crops_data["count"] == 45
 
 # 3. Crop Recommendation - Valid Inputs
 print("\n--- Crop Recommendation: Valid Inputs ---")

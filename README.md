@@ -29,16 +29,17 @@ All metrics below are computed directly from the project's evaluation scripts ([
 | **Logistic Regression** | StandardScaler (Pipeline) | 0.970909 (97.09%) | ± 0.002227 | 0.970725 (97.07%) | Baseline |
 
 ### 2. Crop Yield Forecasting (Random 80/20 vs Time-Based Split)
-*Dataset: 19,689 records. Features: Crop, State, Season, Area, Annual_Rainfall, Fertilizer, Pesticide.*
+*Dataset: 17,334 cleaned records across 45 supported crops (10 excluded/aggregate categories, 76 zero-yield rows, and 192 per-crop $Q3 + 3\times IQR$ outliers removed).*  
+*Features: `Crop`, `State`, `Season`, `Annual_Rainfall`, `Fertilizer` ($\log(1 + \text{kg/ha})$), `Pesticide` ($\log(1 + \text{kg/ha})$). Total `Area` is removed from model inputs.*
 
-* **Random 80/20 Split** (15,751 train / 3,938 test):
-  * **Random Forest (Implemented):** Log $R^2 = \mathbf{0.9649}$, Log MAE = $\mathbf{0.1180}$ | Original Tons/ha $R^2 = \mathbf{0.9271}$, MAE = $\mathbf{13.61\text{ t/ha}}$
-  * **XGBoost Regressor:** Log $R^2 = 0.9177$, Log MAE = $0.2057$ | Original Tons/ha $R^2 = 0.9204$, MAE = $18.05\text{ t/ha}$
-  * **Ridge Regression:** Log $R^2 = 0.8605$, Log MAE = $0.2583$ | Original Tons/ha $R^2 = 0.7677$, MAE = $33.27\text{ t/ha}$
-* **Chronological Time-Based Split** (Train $\le 2017$ [17,510 samples], Test $2018\text{--}2020$ [2,179 samples]):
-  * **Random Forest (Implemented):** Log $R^2 = \mathbf{0.9426}$, Log MAE = $\mathbf{0.1523}$ | Original Tons/ha $R^2 = \mathbf{0.9521}$, MAE = $\mathbf{12.60\text{ t/ha}}$
-  * **XGBoost Regressor:** Log $R^2 = 0.8962$, Log MAE = $0.2345$ | Original Tons/ha $R^2 = 0.9151$, MAE = $17.34\text{ t/ha}$
-  * **Ridge Regression:** Log $R^2 = 0.8440$, Log MAE = $0.2685$ | Original Tons/ha $R^2 = 0.7826$, MAE = $27.96\text{ t/ha}$
+* **Random 80/20 Holdout Split** ($N=3,467$ test samples):
+  * **Random Forest (Implemented, $n=50$, leaf$=3$):** Log $R^2 = \mathbf{0.9506}$, Log MAE = $\mathbf{0.1081}$ (Artifact Size: 5.44 MB)
+  * **XGBoost Regressor ($n=100$, lr$=0.1$, depth$=6$):** Log $R^2 = 0.9153$, Log MAE = $0.1764$
+  * **Ridge Regression ($\alpha=1.0$):** Log $R^2 = 0.8378$, Log MAE = $0.2390$
+* **Chronological Time-Based Split** (Trained strictly on years $\le 2017$ [$15,457$ samples], Tested on $2018\text{--}2020$ [$1,877$ samples]):
+  * **Random Forest (Implemented, $n=50$, leaf$=3$):** Log $R^2 = \mathbf{0.9469}$, Log MAE = $\mathbf{0.1269}$
+  * **XGBoost Regressor ($n=100$, lr$=0.1$, depth$=6$):** Log $R^2 = 0.9076$, Log MAE = $0.1940$
+  * **Ridge Regression ($\alpha=1.0$):** Log $R^2 = 0.8546$, Log MAE = $0.2350$
 
 ---
 
@@ -47,6 +48,7 @@ All metrics below are computed directly from the project's evaluation scripts ([
 1. **Benchmark Recommendation Dataset (100 samples/crop):** The crop recommendation dataset is a synthetic benchmark containing exactly 100 well-separated samples per crop across 22 classes. This clean separation accounts for the high benchmark accuracy ($99.55\%$), which will degrade in real-world agricultural conditions with uncalibrated measurements.
 2. **Aggregated State-Level Yield Data:** In the historical yield dataset, $92.27\%$ of records represent aggregated district or state agricultural acreages ($\ge 100$ hectares; mean: 179,926 hectares; median: 9,317 hectares) rather than individual smallholder family plots ($< 2\text{--}5$ hectares).
 3. **No Real Field Validation Yet:** The system's predictions have not yet undergone physical in-situ farm trials, IoT soil-sensor calibration, or multi-season agronomic field testing in active farming environments.
+4. **Low Application Rate Variance (No Real Dose-Response):** Per-hectare fertilizer and pesticide values in the source data vary very little (P1–P99: 94.67–171.76 kg/ha and 0.09–0.38 kg/ha), so the model cannot learn a real dose-response and out-of-range inputs are clipped.
 
 ---
 
@@ -120,6 +122,27 @@ cd smart-crop-recommendation-system
    * Open `http://localhost:5173` in your browser.
 
 ---
+
+### 4. 🌐 Cloud Deployment (Render & Vercel)
+
+#### Backend Deployment (Render Web Service)
+* **Runtime:** Python 3
+* **Root Directory:** `backend`
+* **Build Command:** `pip install -r requirements.txt`
+* **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+* **Environment Variables:**
+  * `ALLOWED_ORIGINS`: Comma-separated list of allowed frontend origins (e.g. `https://your-app.vercel.app,http://localhost:5173`).
+
+*(Note: If deploying with the repository root as the working directory, use `uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT`)*
+
+#### Frontend Deployment (Vercel)
+* **Framework Preset:** Vite
+* **Root Directory:** `frontend`
+* **Build Command:** `npm run build`
+* **Output Directory:** `dist`
+* **SPA Routing:** Configured automatically via `frontend/vercel.json` (and `frontend/public/_redirects`).
+* **Environment Variables:**
+  * `VITE_API_URL`: Your deployed Render backend URL (e.g. `https://your-backend.onrender.com`).
 
 ## 📡 REST API Endpoints
 

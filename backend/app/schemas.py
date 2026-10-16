@@ -25,19 +25,17 @@ def normalize_crop_name(crop: str) -> str:
 # Inconsistent unit crops (nuts/ha or bales/ha instead of metric tons/ha)
 INCONSISTENT_UNIT_CROPS = {"coconut", "cotton(lint)", "cotton", "jute", "mesta"}
 
-# 51 Crops learned by regressor with valid metric tons/ha yield data
+# 45 Crops learned by regressor with valid metric tons/ha yield data
 SUPPORTED_YIELD_CROPS: List[str] = [
     "arecanut", "arhar/tur", "bajra", "banana", "barley", "black pepper",
     "cardamom", "cashewnut", "castor seed", "coriander", "cowpea(lobia)",
     "dry chillies", "garlic", "ginger", "gram", "groundnut", "guar seed",
     "horse-gram", "jowar", "khesari", "linseed", "maize", "masoor",
-    "moong(green gram)", "moth", "niger seed", "oilseeds total", "onion",
-    "other  rabi pulses", "other cereals", "other kharif pulses",
-    "other oilseeds", "other summer pulses", "peas & beans (pulses)",
-    "potato", "ragi", "rapeseed &mustard", "rice", "safflower",
-    "sannhamp", "sesamum", "small millets", "soyabean", "sugarcane",
-    "sunflower", "sweet potato", "tapioca", "tobacco", "turmeric",
-    "urad", "wheat"
+    "moong(green gram)", "moth", "niger seed", "onion",
+    "peas & beans (pulses)", "potato", "ragi", "rapeseed &mustard", "rice",
+    "safflower", "sannhamp", "sesamum", "small millets", "soyabean",
+    "sugarcane", "sunflower", "sweet potato", "tapioca", "tobacco",
+    "turmeric", "urad", "wheat"
 ]
 
 # 22 Crops output by the crop recommendation classifier
@@ -174,6 +172,7 @@ class YieldPredictionResponse(BaseModel):
     predicted_yield_tons_per_ha: Optional[float] = None
     expected_production_tons: Optional[float] = None
     yield_message: Optional[str] = None
+    clipping_warning: Optional[str] = None
     input_parameters: Dict[str, Any]
 
 
@@ -185,4 +184,5 @@ class CombinedPredictionResponse(BaseModel):
     predicted_yield_tons_per_ha: Optional[float] = None
     expected_production_tons: Optional[float] = None
     yield_message: Optional[str] = None
+    clipping_warning: Optional[str] = None
     input_parameters: Dict[str, Any]

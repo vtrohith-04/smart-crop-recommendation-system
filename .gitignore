@@ -22,8 +22,7 @@ __pycache__/
 htmlcov/
 
 # ==========================================
-# Machine Learning Model Artifacts (>100MB)
-# Models are trained via `python backend/train_models.py`
+# Machine Learning Model Artifacts
 # ==========================================
 *.joblib
 *.pkl
@@ -31,6 +30,11 @@ htmlcov/
 *.onnx
 backend/models/**/*.joblib
 models/**/*.joblib
+
+# Production model artifacts explicitly tracked
+!backend/models/crop_recommendation/v1.0.0/classifier.joblib
+!backend/models/crop_recommendation/v1.0.0/pipeline.joblib
+!backend/models/yield_prediction/v1.0.0/regressor.joblib
 
 # ==========================================
 # Node.js & Frontend Build Outputs

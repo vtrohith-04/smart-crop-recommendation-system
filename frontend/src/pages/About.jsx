@@ -3,12 +3,12 @@ import { Info, Cpu, Database, Award, Zap, AlertTriangle, BarChart3, CheckCircle2
 
 export default function About() {
   const pipelineSteps = [
-    { step: '1', title: 'Datasets Ingestion', desc: 'Raw datasets representing localized soil experimental plots (2,200 samples) and national historical agricultural census records (19,689 samples).' },
-    { step: '2', title: 'Data Cleaning & Preprocessing', desc: 'Category stripping, lowercase normalization, log1p transformation for highly skewed features (Area, Fertilizer, Pesticide, Yield).' },
+    { step: '1', title: 'Datasets Ingestion', desc: 'Raw datasets representing localized soil experimental plots (2,200 samples) and national historical agricultural census records (19,689 raw records cleaned to 17,334).' },
+    { step: '2', title: 'Data Cleaning & Preprocessing', desc: 'String normalization, exclusion of non-standard units, zero-yield filtering, per-crop IQR outlier filtering, and per-hectare log1p rates.' },
     { step: '3', title: 'Leakage-Free Preprocessing', desc: 'StandardScaler inside sklearn Pipeline for recommendation; ColumnTransformer with OneHotEncoder for yield, fit strictly on training splits.' },
-    { step: '4', title: 'Model Training & Pruning', desc: 'Scikit-Learn RandomForestClassifier (100 trees) and RandomForestRegressor pruned via grid search to compress artifact size from 167MB to 6.43MB.' },
+    { step: '4', title: 'Model Training & Pruning', desc: 'Scikit-Learn RandomForestClassifier (100 trees) and RandomForestRegressor pruned via grid search to compress artifact size to 5.44MB.' },
     { step: '5', title: 'State Rainfall Lookup', desc: 'Precomputed state-level annual rainfall lookup table (state_rainfall.json) enabling automated meteorological resolution in smart predictions.' },
-    { step: '6', title: 'FastAPI Serving & Joblib', desc: 'FastAPI asynchronous backend serving serialized Joblib pipelines with Pydantic v2 input boundary validation and heuristic mock fallbacks.' },
+    { step: '6', title: 'FastAPI Serving & Joblib', desc: 'FastAPI asynchronous backend serving serialized Joblib pipelines with Pydantic v2 boundary checks and percentile rate clipping warnings.' },
   ];
 
   const technologies = [
@@ -26,9 +26,9 @@ export default function About() {
   ];
 
   const yieldBaselines = [
-    { model: 'Random Forest (Implemented)', randomR2: '0.9649', randomOrigR2: '0.9271', timeR2: '0.9426', timeOrigR2: '0.9521', timeMae: '12.60 t/ha', badge: 'Active Model' },
-    { model: 'XGBoost Regressor', randomR2: '0.9177', randomOrigR2: '0.9204', timeR2: '0.8962', timeOrigR2: '0.9151', timeMae: '17.34 t/ha', badge: 'Baseline' },
-    { model: 'Ridge Regression', randomR2: '0.8605', randomOrigR2: '0.7677', timeR2: '0.8440', timeOrigR2: '0.7826', timeMae: '27.96 t/ha', badge: 'Baseline' },
+    { model: 'Random Forest (Implemented, n=50, leaf=3)', randomR2: '0.9506', randomMae: '0.1081', timeR2: '0.9469', timeMae: '0.1269', badge: 'Active Model' },
+    { model: 'XGBoost Regressor (n=100, lr=0.1, depth=6)', randomR2: '0.9153', randomMae: '0.1764', timeR2: '0.9076', timeMae: '0.1940', badge: 'Baseline' },
+    { model: 'Ridge Regression (alpha=1.0)', randomR2: '0.8378', randomMae: '0.2390', timeR2: '0.8546', timeMae: '0.2350', badge: 'Baseline' },
   ];
 
   return (
@@ -145,12 +145,12 @@ export default function About() {
           </div>
         </div>
 
-        {/* Regression Table */}
+        {/* Regression Baselines Table */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm shadow-gray-100/30 space-y-4">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div>
-              <h3 className="text-base font-heading font-bold text-gray-900">Crop Yield Forecasting: Random vs Chronological Time Split</h3>
-              <p className="text-xs text-gray-500">Evaluated on 19,689 records (Random 80/20 split and Chronological last 3 years holdout: 2018–2020).</p>
+              <h3 className="text-base font-heading font-bold text-gray-900">Yield Forecasting: Random vs Chronological Time Split</h3>
+              <p className="text-xs text-gray-500">Evaluated on 17,334 cleaned records across 45 supported crops (Random 80/20 split and Time split trained on years &le; 2017, tested on 2018–2020).</p>
             </div>
             <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">Regression</span>
           </div>
@@ -160,10 +160,9 @@ export default function About() {
                 <tr className="border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
                   <th className="py-2.5 px-3">Model</th>
                   <th className="py-2.5 px-3">Random Split (Log R²)</th>
-                  <th className="py-2.5 px-3">Random Split (Orig R²)</th>
+                  <th className="py-2.5 px-3">Random Split (Log MAE)</th>
                   <th className="py-2.5 px-3">Time Split (Log R²)</th>
-                  <th className="py-2.5 px-3">Time Split (Orig R²)</th>
-                  <th className="py-2.5 px-3">Time MAE</th>
+                  <th className="py-2.5 px-3">Time Split (Log MAE)</th>
                   <th className="py-2.5 px-3">Status</th>
                 </tr>
               </thead>
@@ -171,11 +170,10 @@ export default function About() {
                 {yieldBaselines.map((row) => (
                   <tr key={row.model} className={row.badge === 'Active Model' ? 'bg-emerald-50/50 font-bold text-emerald-950' : ''}>
                     <td className="py-2.5 px-3">{row.model}</td>
-                    <td className="py-2.5 px-3">{row.randomR2}</td>
-                    <td className="py-2.5 px-3">{row.randomOrigR2}</td>
-                    <td className="py-2.5 px-3">{row.timeR2}</td>
-                    <td className="py-2.5 px-3">{row.timeOrigR2}</td>
-                    <td className="py-2.5 px-3">{row.timeMae}</td>
+                    <td className="py-2.5 px-3 font-mono">{row.randomR2}</td>
+                    <td className="py-2.5 px-3 font-mono">{row.randomMae}</td>
+                    <td className="py-2.5 px-3 font-mono">{row.timeR2}</td>
+                    <td className="py-2.5 px-3 font-mono">{row.timeMae}</td>
                     <td className="py-2.5 px-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${row.badge === 'Active Model' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
                         {row.badge}
@@ -223,7 +221,7 @@ export default function About() {
         <p className="text-xs sm:text-sm text-amber-900 leading-relaxed font-medium">
           Honest academic evaluation requires highlighting existing system limitations and dataset constraints:
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-amber-900">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 text-xs text-amber-900">
           <div className="bg-white/80 border border-amber-200/80 p-4 rounded-xl space-y-2">
             <span className="font-bold text-amber-950 block text-sm">1. Benchmark Dataset (100 samples/crop)</span>
             <p className="leading-relaxed">
@@ -240,6 +238,12 @@ export default function About() {
             <span className="font-bold text-amber-950 block text-sm">3. No Real Field Validation Yet</span>
             <p className="leading-relaxed">
               Predictions have not yet undergone in-situ physical farm trials, real-time IoT soil sensor validation, or multi-season agronomic field testing in active agricultural environments.
+            </p>
+          </div>
+          <div className="bg-white/80 border border-amber-200/80 p-4 rounded-xl space-y-2">
+            <span className="font-bold text-amber-950 block text-sm">4. Low Rate Variance (No Dose-Response)</span>
+            <p className="leading-relaxed">
+              Per-hectare fertilizer and pesticide values in the source data vary very little (P1–P99: 94.67–171.76 kg/ha and 0.09–0.38 kg/ha), so the model cannot learn a real dose-response and out-of-range inputs are clipped.
             </p>
           </div>
         </div>

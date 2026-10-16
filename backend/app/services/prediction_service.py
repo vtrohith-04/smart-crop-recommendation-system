@@ -114,8 +114,6 @@ class PredictionService:
         crop = payload.crop.strip().lower()
         mapped_crop = normalize_crop_name(crop)
         area = payload.area
-        fertilizer = payload.fertilizer
-        pesticide = payload.pesticide
         rainfall = payload.annual_rainfall
 
         # If the mapped crop is not supported by the yield regressor, return yield_available=False
@@ -125,29 +123,60 @@ class PredictionService:
                 "predicted_yield_tons_per_ha": None,
                 "expected_production_tons": None,
                 "yield_message": "No reliable yield data for this crop",
+                "clipping_warning": None,
                 "input_parameters": payload.model_dump()
             }
 
-        # If real model is loaded, we preprocess and run it with the canonical mapped crop name
+        # Compute per-hectare input application rates
+        fert_per_ha = payload.fertilizer / area
+        pest_per_ha = payload.pesticide / area
+
+        # Retrieve 1st and 99th percentiles from model metadata
+        percentiles = model_loader.get_feature_percentiles()
+        fert_p1 = percentiles.get("fertilizer_per_ha", {}).get("p1", 94.67)
+        fert_p99 = percentiles.get("fertilizer_per_ha", {}).get("p99", 171.76)
+        pest_p1 = percentiles.get("pesticide_per_ha", {}).get("p1", 0.09)
+        pest_p99 = percentiles.get("pesticide_per_ha", {}).get("p99", 0.38)
+
+        # Clip per-hectare features to dataset bounds and register clipping warning
+        clipping_warnings = []
+        fert_clipped = fert_per_ha
+        if fert_per_ha < fert_p1:
+            fert_clipped = fert_p1
+            clipping_warnings.append(f"Fertilizer rate ({fert_per_ha:.1f} kg/ha) was below 1st percentile ({fert_p1:.1f} kg/ha) and clipped.")
+        elif fert_per_ha > fert_p99:
+            fert_clipped = fert_p99
+            clipping_warnings.append(f"Fertilizer rate ({fert_per_ha:.1f} kg/ha) exceeded 99th percentile ({fert_p99:.1f} kg/ha) and clipped.")
+
+        pest_clipped = pest_per_ha
+        if pest_per_ha < pest_p1:
+            pest_clipped = pest_p1
+            clipping_warnings.append(f"Pesticide rate ({pest_per_ha:.3f} kg/ha) was below 1st percentile ({pest_p1:.3f} kg/ha) and clipped.")
+        elif pest_per_ha > pest_p99:
+            pest_clipped = pest_p99
+            clipping_warnings.append(f"Pesticide rate ({pest_per_ha:.3f} kg/ha) exceeded 99th percentile ({pest_p99:.3f} kg/ha) and clipped.")
+
+        clipping_warning = " ".join(clipping_warnings) if clipping_warnings else None
+
+        # If real model is loaded, we preprocess and run it with per-hectare log features (Area excluded)
         if not model_loader.is_mock and model_loader.yield_model is not None:
             try:
                 df_input = pd.DataFrame([{
                     "Crop": mapped_crop,
-                    "State": payload.state,
-                    "Season": payload.season,
-                    "Area": np.log1p(payload.area),
-                    "Annual_Rainfall": payload.annual_rainfall,
-                    "Fertilizer": np.log1p(payload.fertilizer),
-                    "Pesticide": np.log1p(payload.pesticide)
+                    "State": payload.state.strip().lower(),
+                    "Season": payload.season.strip().lower(),
+                    "Annual_Rainfall": rainfall,
+                    "Fertilizer": np.log1p(fert_clipped),
+                    "Pesticide": np.log1p(pest_clipped)
                 }])
                 pred_log_yield = model_loader.yield_model.predict(df_input)
                 predicted_yield = float(np.expm1(pred_log_yield[0]))
             except Exception:
                 # Fall back to simulation if real pipeline fails
-                predicted_yield = PredictionService._simulate_yield(mapped_crop, fertilizer, pesticide, rainfall)
+                predicted_yield = PredictionService._simulate_yield(mapped_crop, payload.fertilizer, payload.pesticide, rainfall)
         else:
             # Fallback mock simulation (rule-based)
-            predicted_yield = PredictionService._simulate_yield(mapped_crop, fertilizer, pesticide, rainfall)
+            predicted_yield = PredictionService._simulate_yield(mapped_crop, payload.fertilizer, payload.pesticide, rainfall)
 
         # Expected Production in tons = Yield (tons/ha) * Area (ha)
         expected_production = round(predicted_yield * area, 2)
@@ -157,6 +186,7 @@ class PredictionService:
             "predicted_yield_tons_per_ha": round(predicted_yield, 3),
             "expected_production_tons": expected_production,
             "yield_message": None,
+            "clipping_warning": clipping_warning,
             "input_parameters": payload.model_dump()
         }
 

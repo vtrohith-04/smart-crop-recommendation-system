@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -33,9 +34,12 @@ app = FastAPI(
 )
 
 # Enable CORS for React Frontend integration
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
+allowed_origins = [orig.strip() for orig in raw_origins.split(",") if orig.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust for specific domains in production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -184,6 +188,7 @@ async def predict_combined(payload: CombinedPredictionInput):
             "predicted_yield_tons_per_ha": yield_result.get("predicted_yield_tons_per_ha"),
             "expected_production_tons": yield_result.get("expected_production_tons"),
             "yield_message": yield_result.get("yield_message"),
+            "clipping_warning": yield_result.get("clipping_warning"),
             "input_parameters": payload.model_dump()
         }
     except ValueError as val_err:

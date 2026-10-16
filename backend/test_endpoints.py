@@ -96,7 +96,7 @@ assert status == 200, f"Expected 200, got {status}"
 # 2. Supported Crops
 status, data = test_get("/supported-crops")
 assert status == 200, f"Expected 200, got {status}"
-assert data["count"] == 51, f"Expected 51 supported crops, got {data['count']}"
+assert data["count"] == 45, f"Expected 45 supported crops, got {data['count']}"
 assert "rice" in data["supported_crops"], "rice should be in supported crops"
 assert "cotton" not in data["supported_crops"], "cotton should be excluded due to non-standard units"
 assert "coconut" not in data["supported_crops"], "coconut should be excluded due to non-standard units"

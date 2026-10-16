@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useSmartPredict } from '../hooks/useSmartPredict';
 import Spinner from '../components/Spinner';
 import Alert from '../components/Alert';
-import { Cpu, Sprout, TrendingUp, MapPin, Calendar, Layers, Thermometer, Droplets, Wind, ShieldCheck, Zap } from 'lucide-react';
+import { Cpu, Sprout, TrendingUp, MapPin, Calendar, Layers, Thermometer, Droplets, Wind, ShieldCheck, Zap, AlertTriangle } from 'lucide-react';
 
 const STATES = [
   "andaman and nicobar", "andhra pradesh", "arunachal pradesh", "assam",
@@ -389,6 +389,16 @@ export default function SmartPrediction() {
                         <div className="text-base font-bold text-emerald-700 mt-0.5">{result.expected_production_tons} tons</div>
                       </div>
                     </div>
+
+                    {result.clipping_warning && (
+                      <div className="w-full mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200/70 text-amber-900 text-xs text-left flex items-start space-x-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-amber-900 block text-[11px] uppercase tracking-wider">Rate Clipping Notice</span>
+                          <span className="text-[11px] text-amber-800 leading-snug block mt-0.5">{result.clipping_warning}</span>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200/60 text-amber-800 text-xs text-left">

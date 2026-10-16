@@ -84,6 +84,10 @@ class ModelLoader:
         self.state_rainfall = {}
         self.national_rainfall_mean = 1437.76
         self.supported_crops = []
+        self.feature_percentiles = {
+            "fertilizer_per_ha": {"p1": 94.67, "p99": 171.76},
+            "pesticide_per_ha": {"p1": 0.09, "p99": 0.38}
+        }
         self.is_mock = False
 
     def load_artifacts(self) -> None:
@@ -133,23 +137,40 @@ class ModelLoader:
         else:
             logger.warning("Preprocessing Pipeline not found. Scaling will be bypassed or mocked.")
 
-        # Extract supported yield crops from OneHotEncoder categories_
-        self.supported_crops = []
-        inconsistent_crops = {"coconut", "cotton(lint)", "cotton", "jute", "mesta"}
-        if self.yield_model is not None and hasattr(self.yield_model, "named_steps"):
+        # Load metadata (supported crops and per-hectare percentiles)
+        metadata_path = os.path.join(self.models_dir, "yield_prediction", "v1.0.0", "metadata.json")
+        if os.path.exists(metadata_path):
             try:
-                preprocessor = self.yield_model.named_steps.get("preprocessor")
-                if preprocessor and hasattr(preprocessor, "named_transformers_"):
-                    ohe = preprocessor.named_transformers_.get("cat")
-                    if ohe and hasattr(ohe, "categories_") and len(ohe.categories_) > 0:
-                        learned_crops = list(ohe.categories_[0])
-                        self.supported_crops = sorted([
-                            str(c).strip().lower() for c in learned_crops
-                            if str(c).strip().lower() not in inconsistent_crops
-                        ])
-                        logger.info(f"Loaded {len(self.supported_crops)} supported yield crops from regressor OneHotEncoder categories_.")
+                with open(metadata_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                    self.supported_crops = meta.get("supported_crops", [])
+                    if "feature_percentiles" in meta:
+                        self.feature_percentiles = meta["feature_percentiles"]
+                logger.info(f"Successfully loaded yield metadata ({len(self.supported_crops)} crops).")
             except Exception as e:
-                logger.error(f"Error extracting learned crop categories from regressor: {e}")
+                logger.error(f"Error loading yield metadata: {e}")
+        else:
+            # Fallback: Extract supported yield crops from OneHotEncoder categories_
+            self.supported_crops = []
+            inconsistent_crops = {
+                "coconut", "cotton(lint)", "cotton", "jute", "mesta",
+                "oilseeds total", "other cereals", "other rabi pulses",
+                "other kharif pulses", "other oilseeds", "other summer pulses"
+            }
+            if self.yield_model is not None and hasattr(self.yield_model, "named_steps"):
+                try:
+                    preprocessor = self.yield_model.named_steps.get("preprocessor")
+                    if preprocessor and hasattr(preprocessor, "named_transformers_"):
+                        ohe = preprocessor.named_transformers_.get("cat")
+                        if ohe and hasattr(ohe, "categories_") and len(ohe.categories_) > 0:
+                            learned_crops = list(ohe.categories_[0])
+                            self.supported_crops = sorted([
+                                str(c).strip().lower() for c in learned_crops
+                                if str(c).strip().lower() not in inconsistent_crops
+                            ])
+                            logger.info(f"Loaded {len(self.supported_crops)} supported yield crops from regressor categories.")
+                except Exception as e:
+                    logger.error(f"Error extracting learned crop categories from regressor: {e}")
 
         # Load State Annual Rainfall Lookup Table
         if os.path.exists(state_rainfall_path):
@@ -163,6 +184,15 @@ class ModelLoader:
                 logger.error(f"Error loading State Rainfall Lookup Table: {e}.")
         else:
             logger.warning("State Rainfall Lookup Table not found. Defaulting to national mean fallback.")
+
+    def get_feature_percentiles(self) -> dict:
+        """Returns the 1st and 99th percentiles for per-hectare features."""
+        if not hasattr(self, "feature_percentiles") or not self.feature_percentiles:
+            self.load_artifacts()
+        return getattr(self, "feature_percentiles", {
+            "fertilizer_per_ha": {"p1": 94.67, "p99": 171.76},
+            "pesticide_per_ha": {"p1": 0.09, "p99": 0.38}
+        })
 
     def get_supported_yield_crops(self) -> list:
         """Returns the list of crops with valid, reliable yield regression data."""

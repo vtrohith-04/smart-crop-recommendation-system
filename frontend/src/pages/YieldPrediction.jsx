@@ -10,13 +10,11 @@ const DEFAULT_SUPPORTED_CROPS = [
   "cardamom", "cashewnut", "castor seed", "coriander", "cowpea(lobia)",
   "dry chillies", "garlic", "ginger", "gram", "groundnut", "guar seed",
   "horse-gram", "jowar", "khesari", "linseed", "maize", "masoor",
-  "moong(green gram)", "moth", "niger seed", "oilseeds total", "onion",
-  "other  rabi pulses", "other cereals", "other kharif pulses",
-  "other oilseeds", "other summer pulses", "peas & beans (pulses)",
-  "potato", "ragi", "rapeseed &mustard", "rice", "safflower",
-  "sannhamp", "sesamum", "small millets", "soyabean", "sugarcane",
-  "sunflower", "sweet potato", "tapioca", "tobacco", "turmeric",
-  "urad", "wheat"
+  "moong(green gram)", "moth", "niger seed", "onion",
+  "peas & beans (pulses)", "potato", "ragi", "rapeseed &mustard", "rice",
+  "safflower", "sannhamp", "sesamum", "small millets", "soyabean",
+  "sugarcane", "sunflower", "sweet potato", "tapioca", "tobacco",
+  "turmeric", "urad", "wheat"
 ];
 
 const STATES = [
@@ -333,6 +331,16 @@ export default function YieldPrediction() {
                         <div className="text-lg font-bold text-emerald-700 mt-0.5">{result.expected_production_tons} tons</div>
                       </div>
                     </div>
+
+                    {result.clipping_warning && (
+                      <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200/70 text-amber-900 text-xs flex items-start space-x-2.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-amber-900 block text-[11px] uppercase tracking-wider">Rate Clipping Notice</span>
+                          <span className="text-[11px] text-amber-800 leading-snug block mt-0.5">{result.clipping_warning}</span>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="bg-slate-900 text-white/95 rounded-2xl p-5 border border-slate-800 text-xs leading-relaxed space-y-2 shadow-sm">
                       <span className="font-bold text-emerald-400 uppercase tracking-widest block font-heading">Inference Context:</span>

@@ -50,59 +50,167 @@ else:
 print()
 
 # -------------------------------------------------------------
-# 2. Train Crop Yield Prediction Model (Grid Search & State Rainfall Extraction)
+# 2. Train Crop Yield Prediction Model (Data Cleaning & Retraining)
 # -------------------------------------------------------------
 print("=" * 60)
-print("TRAINING CROP YIELD PREDICTION MODEL (HYPERPARAMETER SEARCH)")
+print("TRAINING CROP YIELD PREDICTION MODEL (DATA CLEANING & RETRAINING)")
 print("=" * 60)
 
 crop_yield_data_path = "../Agricultural Crop Yield in Indian States Dataset/crop_yield.csv"
 if os.path.exists(crop_yield_data_path):
     df_yield = pd.read_csv(crop_yield_data_path)
+    raw_row_count = len(df_yield)
+    print(f"Raw dataset rows: {raw_row_count:,}")
     
-    # Clean data matching schemas.py validation
-    df_yield['Crop'] = df_yield['Crop'].astype(str).str.strip().str.lower()
-    df_yield['State'] = df_yield['State'].astype(str).str.strip().str.lower()
-    df_yield['Season'] = df_yield['Season'].astype(str).str.strip().str.lower()
+    # Step 1: Normalize crop/state/season strings (strip, lowercase, collapse repeated spaces)
+    for col in ['Crop', 'State', 'Season']:
+        df_yield[col] = df_yield[col].astype(str).str.strip().str.lower().str.replace(r'\s+', ' ', regex=True)
     
-    # Compute and save state-level mean annual rainfall lookup table
-    state_rainfall_means = df_yield.groupby('State')['Annual_Rainfall'].mean().round(2).to_dict()
-    national_rainfall_mean = round(float(df_yield['Annual_Rainfall'].mean()), 2)
+    # Step 2: Drop rows for coconut, cotton(lint), jute, mesta and aggregate categories
+    drop_crops = [
+        'coconut', 'cotton(lint)', 'jute', 'mesta',
+        'oilseeds total', 'other cereals', 'other rabi pulses',
+        'other kharif pulses', 'other oilseeds', 'other summer pulses'
+    ]
+    dropped_mask = df_yield['Crop'].isin(drop_crops)
+    dropped_count = dropped_mask.sum()
+    df_yield = df_yield[~dropped_mask].copy()
+    print(f"Dropped {dropped_count:,} rows belonging to excluded/aggregate crops: {drop_crops}")
+    print(f"Remaining rows after dropping excluded crops: {len(df_yield):,}")
+    print()
     
+    # Step 3a: Print Yield == 0 per crop and drop if under 5% of rows
+    print("Zero Yield Analysis Per Crop:")
+    print(f"{'Crop':<25} | {'Zero Rows':<10} | {'Total Rows':<10} | {'Zero %':<8} | Action")
+    print("-" * 65)
+    
+    zero_dropped_crops = []
+    crops_to_keep_zeros = []
+    
+    for crop, grp in df_yield.groupby('Crop'):
+        n_zeros = (grp['Yield'] == 0).sum()
+        pct_zeros = (n_zeros / len(grp)) * 100
+        if n_zeros > 0:
+            if pct_zeros < 5.0:
+                action = "Drop 0s (< 5%)"
+                zero_dropped_crops.append(crop)
+            else:
+                action = "Keep 0s (>= 5%)"
+                crops_to_keep_zeros.append(crop)
+            print(f"{crop:<25} | {n_zeros:<10} | {len(grp):<10} | {pct_zeros:<7.2f}% | {action}")
+            
+    # Drop Yield == 0 rows for crops where zero percentage is under 5%
+    mask_zero_to_drop = (df_yield['Yield'] == 0) & (df_yield['Crop'].isin(zero_dropped_crops))
+    n_zeros_dropped = mask_zero_to_drop.sum()
+    df_yield = df_yield[~mask_zero_to_drop].copy()
+    print(f"\nTotal zero-yield rows dropped: {n_zeros_dropped} across {len(zero_dropped_crops)} crops.")
+    print(f"Rows remaining after zero-yield filtering: {len(df_yield):,}")
+    print()
+    
+    # Step 3b: Per crop, drop rows with Yield above Q3 + 3*IQR
+    print("Outlier Yield Filtering Per Crop (Yield > Q3 + 3*IQR):")
+    print(f"{'Crop':<25} | {'Q1':<8} | {'Q3':<8} | {'IQR':<8} | {'Cutoff':<8} | {'Max':<8} | {'Outliers Dropped':<16}")
+    print("-" * 95)
+    
+    cleaned_crop_dfs = []
+    total_outliers_dropped = 0
+    
+    for crop, grp in df_yield.groupby('Crop'):
+        q1 = grp['Yield'].quantile(0.25)
+        q3 = grp['Yield'].quantile(0.75)
+        iqr = q3 - q1
+        cutoff = q3 + 3.0 * iqr
+        
+        outliers_mask = grp['Yield'] > cutoff
+        n_outliers = outliers_mask.sum()
+        total_outliers_dropped += n_outliers
+        
+        if n_outliers > 0:
+            print(f"{crop:<25} | {q1:<8.3f} | {q3:<8.3f} | {iqr:<8.3f} | {cutoff:<8.3f} | {grp['Yield'].max():<8.3f} | {n_outliers:<16}")
+            
+        cleaned_crop_dfs.append(grp[~outliers_mask])
+        
+    df_clean = pd.concat(cleaned_crop_dfs, ignore_index=True)
+    print(f"\nTotal outlier rows dropped: {total_outliers_dropped} across {len(cleaned_crop_dfs)} crops.")
+    print(f"Cleaned dataset rows: {len(df_clean):,} (from initial {raw_row_count:,})")
+    print()
+    
+    # Step 4: Per-hectare features & percentiles
+    # Replace Fertilizer and Pesticide with log1p(Fertilizer/Area) and log1p(Pesticide/Area)
+    # Remove Area from model inputs
+    df_clean['Fertilizer_per_ha'] = df_clean['Fertilizer'] / df_clean['Area']
+    df_clean['Pesticide_per_ha'] = df_clean['Pesticide'] / df_clean['Area']
+    
+    fert_p1 = float(df_clean['Fertilizer_per_ha'].quantile(0.01))
+    fert_p99 = float(df_clean['Fertilizer_per_ha'].quantile(0.99))
+    pest_p1 = float(df_clean['Pesticide_per_ha'].quantile(0.01))
+    pest_p99 = float(df_clean['Pesticide_per_ha'].quantile(0.99))
+    
+    print("Computed Per-Hectare Feature Percentiles (Cleaned Data):")
+    print(f"  Fertilizer/Area : 1st percentile = {fert_p1:.2f} kg/ha, 99th percentile = {fert_p99:.2f} kg/ha")
+    print(f"  Pesticide/Area  : 1st percentile = {pest_p1:.4f} kg/ha, 99th percentile = {pest_p99:.4f} kg/ha")
+    print()
+    
+    supported_crops = sorted(df_clean['Crop'].unique().tolist())
+    print(f"Total supported crops ({len(supported_crops)}): {supported_crops}")
+    print()
+    
+    # Step 5: Save metadata artifact
+    metadata_artifact = {
+        "supported_crops": supported_crops,
+        "feature_percentiles": {
+            "fertilizer_per_ha": {
+                "p1": fert_p1,
+                "p99": fert_p99
+            },
+            "pesticide_per_ha": {
+                "p1": pest_p1,
+                "p99": pest_p99
+            }
+        }
+    }
+    metadata_path = "models/yield_prediction/v1.0.0/metadata.json"
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata_artifact, f, indent=2)
+    print(f"Saved model metadata to: {metadata_path}")
+    
+    # Save State Rainfall Lookup Table
+    state_rainfall_means = df_clean.groupby('State')['Annual_Rainfall'].mean().round(2).to_dict()
+    national_rainfall_mean = round(float(df_clean['Annual_Rainfall'].mean()), 2)
     state_rainfall_artifact = {
         "national_mean_rainfall": national_rainfall_mean,
         "state_annual_rainfall_means": state_rainfall_means
     }
-    
     state_rainfall_path = "models/yield_prediction/v1.0.0/state_rainfall.json"
     with open(state_rainfall_path, "w", encoding="utf-8") as f:
         json.dump(state_rainfall_artifact, f, indent=2)
     print(f"Saved state rainfall lookup table to: {state_rainfall_path}")
+    print()
     
-    # Preprocess inputs matching prediction_service.py logic
+    # Build Model Input DataFrame
+    # Inputs: Crop, State, Season, Annual_Rainfall, Fertilizer, Pesticide (Area removed!)
     X_yield = pd.DataFrame()
-    X_yield['Crop'] = df_yield['Crop']
-    X_yield['State'] = df_yield['State']
-    X_yield['Season'] = df_yield['Season']
-    X_yield['Area'] = np.log1p(df_yield['Area'])
-    X_yield['Annual_Rainfall'] = df_yield['Annual_Rainfall']
-    X_yield['Fertilizer'] = np.log1p(df_yield['Fertilizer'])
-    X_yield['Pesticide'] = np.log1p(df_yield['Pesticide'])
+    X_yield['Crop'] = df_clean['Crop']
+    X_yield['State'] = df_clean['State']
+    X_yield['Season'] = df_clean['Season']
+    X_yield['Annual_Rainfall'] = df_clean['Annual_Rainfall']
+    X_yield['Fertilizer'] = np.log1p(df_clean['Fertilizer_per_ha'])
+    X_yield['Pesticide'] = np.log1p(df_clean['Pesticide_per_ha'])
     
     # Target = log1p(Yield)
-    y_yield = np.log1p(df_yield['Yield'])
+    y_yield = np.log1p(df_clean['Yield'])
     
     # 80/20 Train/Test split
     X_train_yield, X_test_yield, y_train_yield, y_test_yield = train_test_split(
         X_yield, y_yield, test_size=0.2, random_state=42
     )
-    print(f"Training samples: {len(X_train_yield)}, Held-out test samples: {len(X_test_yield)}")
+    print(f"Training samples: {len(X_train_yield):,}, Held-out test samples: {len(X_test_yield):,}")
     print()
     
     categorical_features = ['Crop', 'State', 'Season']
-    numerical_features = ['Area', 'Annual_Rainfall', 'Fertilizer', 'Pesticide']
+    numerical_features = ['Annual_Rainfall', 'Fertilizer', 'Pesticide']
     
-    # Grid search candidate configurations
+    # Hyperparameter Grid Search
     n_estimators_list = [50, 100]
     min_samples_leaf_list = [1, 3, 5, 10]
     max_depth_list = [None, 20]
@@ -161,7 +269,6 @@ if os.path.exists(crop_yield_data_path):
                     'pipeline': pipe
                 })
                 
-                # Cleanup temp file
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
     

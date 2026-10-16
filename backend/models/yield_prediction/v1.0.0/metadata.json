@@ -1,0 +1,59 @@
+{
+  "supported_crops": [
+    "arecanut",
+    "arhar/tur",
+    "bajra",
+    "banana",
+    "barley",
+    "black pepper",
+    "cardamom",
+    "cashewnut",
+    "castor seed",
+    "coriander",
+    "cowpea(lobia)",
+    "dry chillies",
+    "garlic",
+    "ginger",
+    "gram",
+    "groundnut",
+    "guar seed",
+    "horse-gram",
+    "jowar",
+    "khesari",
+    "linseed",
+    "maize",
+    "masoor",
+    "moong(green gram)",
+    "moth",
+    "niger seed",
+    "onion",
+    "peas & beans (pulses)",
+    "potato",
+    "ragi",
+    "rapeseed &mustard",
+    "rice",
+    "safflower",
+    "sannhamp",
+    "sesamum",
+    "small millets",
+    "soyabean",
+    "sugarcane",
+    "sunflower",
+    "sweet potato",
+    "tapioca",
+    "tobacco",
+    "turmeric",
+    "urad",
+    "wheat"
+  ],
+  "feature_percentiles": {
+    "fertilizer_per_ha": {
+      "p1": 94.67,
+      "p99": 171.76000000000002
+    },
+    "pesticide_per_ha": {
+      "p1": 0.09,
+      "p99": 0.38
+    }
+  }
+}
