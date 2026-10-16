@@ -63,7 +63,7 @@ All metrics below are computed directly from the project's evaluation scripts ([
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/kaleeswaran185/smart-crop-recommendation-system.git
+git clone https://github.com/vtrohith-04/smart-crop-recommendation-system.git
 cd smart-crop-recommendation-system
 ```
 
