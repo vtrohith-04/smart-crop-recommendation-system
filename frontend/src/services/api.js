@@ -25,6 +25,19 @@ export const apiService = {
   },
 
   /**
+   * GET /supported-crops
+   * Retrieves list of crops supported by the yield prediction regression engine.
+   */
+  async getSupportedCrops() {
+    try {
+      const response = await client.get('/supported-crops');
+      return response.data;
+    } catch (error) {
+      this._handleError(error);
+    }
+  },
+
+  /**
    * POST /crop-recommendation
    * Recommends optimal crops based on soil nutrients and weather inputs.
    */

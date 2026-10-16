@@ -105,6 +105,16 @@ async def health_check():
     }
 
 
+@app.get("/supported-crops", status_code=status.HTTP_200_OK)
+async def get_supported_crops():
+    """Returns the list of crops supported by the yield prediction regression engine."""
+    crops = model_loader.get_supported_yield_crops()
+    return {
+        "count": len(crops),
+        "supported_crops": crops
+    }
+
+
 @app.post("/crop-recommendation", response_model=CropRecommendationResponse, status_code=status.HTTP_200_OK)
 async def crop_recommendation(payload: CropRecommendationInput):
     """Recommends the best crop suitability based on soil nutrients and weather metrics."""
@@ -170,8 +180,10 @@ async def predict_combined(payload: CombinedPredictionInput):
         return {
             "recommended_crop": recommended_crop,
             "recommendation_confidence": recommendation_confidence,
-            "predicted_yield_tons_per_ha": yield_result["predicted_yield_tons_per_ha"],
-            "expected_production_tons": yield_result["expected_production_tons"],
+            "yield_available": yield_result.get("yield_available", True),
+            "predicted_yield_tons_per_ha": yield_result.get("predicted_yield_tons_per_ha"),
+            "expected_production_tons": yield_result.get("expected_production_tons"),
+            "yield_message": yield_result.get("yield_message"),
             "input_parameters": payload.model_dump()
         }
     except ValueError as val_err:

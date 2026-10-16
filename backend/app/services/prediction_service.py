@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
-from app.schemas import CropRecommendationInput, YieldPredictionInput, CombinedPredictionInput
+from typing import Dict, Any, Optional
+from app.schemas import CropRecommendationInput, YieldPredictionInput, CombinedPredictionInput, normalize_crop_name
 from app.models.model_loader import model_loader
 
 # Define typical base yield statistics (tons per hectare) for different crops
@@ -112,18 +112,27 @@ class PredictionService:
     @staticmethod
     def get_yield_prediction(payload: YieldPredictionInput) -> Dict[str, Any]:
         crop = payload.crop.strip().lower()
+        mapped_crop = normalize_crop_name(crop)
         area = payload.area
         fertilizer = payload.fertilizer
         pesticide = payload.pesticide
         rainfall = payload.annual_rainfall
 
-        # If real model is loaded, we preprocess and run it
+        # If the mapped crop is not supported by the yield regressor, return yield_available=False
+        if not model_loader.is_crop_supported(mapped_crop):
+            return {
+                "yield_available": False,
+                "predicted_yield_tons_per_ha": None,
+                "expected_production_tons": None,
+                "yield_message": "No reliable yield data for this crop",
+                "input_parameters": payload.model_dump()
+            }
+
+        # If real model is loaded, we preprocess and run it with the canonical mapped crop name
         if not model_loader.is_mock and model_loader.yield_model is not None:
             try:
-                # Real model feature assembly (XGBoost Expects Dataframe or structured array)
-                # Feature scaling, target encoding or log transforms would occur here
                 df_input = pd.DataFrame([{
-                    "Crop": payload.crop,
+                    "Crop": mapped_crop,
                     "State": payload.state,
                     "Season": payload.season,
                     "Area": np.log1p(payload.area),
@@ -135,17 +144,19 @@ class PredictionService:
                 predicted_yield = float(np.expm1(pred_log_yield[0]))
             except Exception:
                 # Fall back to simulation if real pipeline fails
-                predicted_yield = PredictionService._simulate_yield(crop, fertilizer, pesticide, rainfall)
+                predicted_yield = PredictionService._simulate_yield(mapped_crop, fertilizer, pesticide, rainfall)
         else:
             # Fallback mock simulation (rule-based)
-            predicted_yield = PredictionService._simulate_yield(crop, fertilizer, pesticide, rainfall)
+            predicted_yield = PredictionService._simulate_yield(mapped_crop, fertilizer, pesticide, rainfall)
 
         # Expected Production in tons = Yield (tons/ha) * Area (ha)
         expected_production = round(predicted_yield * area, 2)
 
         return {
+            "yield_available": True,
             "predicted_yield_tons_per_ha": round(predicted_yield, 3),
             "expected_production_tons": expected_production,
+            "yield_message": None,
             "input_parameters": payload.model_dump()
         }
 

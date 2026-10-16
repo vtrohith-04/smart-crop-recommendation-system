@@ -368,24 +368,37 @@ export default function SmartPrediction() {
               {/* Yield Forecast Card */}
               <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-md shadow-gray-200/30 relative overflow-hidden flex flex-col items-center text-center">
                 <div className="absolute top-0 right-0 h-40 w-40 bg-gradient-to-br from-blue-300 to-indigo-400 opacity-10 blur-2xl" />
-                <div className="inline-flex p-3.5 bg-blue-50 rounded-2xl text-blue-600 mb-4 shadow-sm shadow-blue-500/5">
-                  <TrendingUp className="h-8 w-8 animate-pulse" />
+                <div className={`inline-flex p-3.5 ${result.yield_available !== false ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'} rounded-2xl mb-4 shadow-sm`}>
+                  <TrendingUp className="h-8 w-8" />
                 </div>
                 <span className="text-gray-550 text-xs uppercase tracking-widest font-extrabold font-heading">2. Expected Crop Yield</span>
-                <span className="text-3xl font-heading font-extrabold text-slate-900 mt-2">
-                  {result.predicted_yield_tons_per_ha} <span className="text-sm font-semibold text-slate-400 font-sans">tons/ha</span>
-                </span>
                 
-                <div className="w-full grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-100/70 text-left">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Acreage</span>
-                    <div className="text-base font-bold text-slate-900 mt-0.5">{result.input_parameters.area} ha</div>
+                {result.yield_available !== false ? (
+                  <>
+                    <span className="text-3xl font-heading font-extrabold text-slate-900 mt-2">
+                      {result.predicted_yield_tons_per_ha} <span className="text-sm font-semibold text-slate-400 font-sans">tons/ha</span>
+                    </span>
+                    
+                    <div className="w-full grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-100/70 text-left">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Acreage</span>
+                        <div className="text-base font-bold text-slate-900 mt-0.5">{result.input_parameters.area} ha</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Output</span>
+                        <div className="text-base font-bold text-emerald-700 mt-0.5">{result.expected_production_tons} tons</div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200/60 text-amber-800 text-xs text-left">
+                    <p className="font-bold text-amber-900 mb-1">Yield Forecast Unavailable</p>
+                    <p>{result.yield_message || "No reliable yield data for this crop"}</p>
+                    <div className="mt-2 text-[11px] text-amber-700">
+                      The recommendation model suggests <strong className="capitalize">{result.recommended_crop}</strong>, but the yield regressor does not have reliable Indian agricultural yield records (in tons/ha) for this specific crop.
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Output</span>
-                    <div className="text-base font-bold text-emerald-700 mt-0.5">{result.expected_production_tons} tons</div>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Validation Badge */}
@@ -393,7 +406,7 @@ export default function SmartPrediction() {
                 <ShieldCheck className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-emerald-450 uppercase tracking-widest block mb-1">Architecture Integrity Validated</span>
-                  <span>This prediction was computed by routing inputs sequentially through the CatBoost Classifier and XGBoost Regressor without target leakage.</span>
+                  <span>This prediction was computed by routing inputs sequentially through the Random Forest Classifier and Regressor without target leakage.</span>
                 </div>
               </div>
             </div>

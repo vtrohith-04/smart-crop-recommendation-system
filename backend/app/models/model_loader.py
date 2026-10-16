@@ -83,6 +83,7 @@ class ModelLoader:
         self.encoder = None
         self.state_rainfall = {}
         self.national_rainfall_mean = 1437.76
+        self.supported_crops = []
         self.is_mock = False
 
     def load_artifacts(self) -> None:
@@ -132,6 +133,24 @@ class ModelLoader:
         else:
             logger.warning("Preprocessing Pipeline not found. Scaling will be bypassed or mocked.")
 
+        # Extract supported yield crops from OneHotEncoder categories_
+        self.supported_crops = []
+        inconsistent_crops = {"coconut", "cotton(lint)", "cotton", "jute", "mesta"}
+        if self.yield_model is not None and hasattr(self.yield_model, "named_steps"):
+            try:
+                preprocessor = self.yield_model.named_steps.get("preprocessor")
+                if preprocessor and hasattr(preprocessor, "named_transformers_"):
+                    ohe = preprocessor.named_transformers_.get("cat")
+                    if ohe and hasattr(ohe, "categories_") and len(ohe.categories_) > 0:
+                        learned_crops = list(ohe.categories_[0])
+                        self.supported_crops = sorted([
+                            str(c).strip().lower() for c in learned_crops
+                            if str(c).strip().lower() not in inconsistent_crops
+                        ])
+                        logger.info(f"Loaded {len(self.supported_crops)} supported yield crops from regressor OneHotEncoder categories_.")
+            except Exception as e:
+                logger.error(f"Error extracting learned crop categories from regressor: {e}")
+
         # Load State Annual Rainfall Lookup Table
         if os.path.exists(state_rainfall_path):
             try:
@@ -144,6 +163,24 @@ class ModelLoader:
                 logger.error(f"Error loading State Rainfall Lookup Table: {e}.")
         else:
             logger.warning("State Rainfall Lookup Table not found. Defaulting to national mean fallback.")
+
+    def get_supported_yield_crops(self) -> list:
+        """Returns the list of crops with valid, reliable yield regression data."""
+        if getattr(self, "supported_crops", None):
+            return list(self.supported_crops)
+        if self.yield_model is None:
+            self.load_artifacts()
+            if getattr(self, "supported_crops", None):
+                return list(self.supported_crops)
+        from app.schemas import SUPPORTED_YIELD_CROPS
+        return list(SUPPORTED_YIELD_CROPS)
+
+    def is_crop_supported(self, crop: str) -> bool:
+        """Checks if a canonical crop name is supported by the yield regressor."""
+        from app.schemas import normalize_crop_name
+        canonical = normalize_crop_name(crop)
+        supported_set = set(self.get_supported_yield_crops())
+        return canonical in supported_set
 
     def get_state_rainfall(self, state: str) -> float:
         """Retrieves mean annual rainfall for a state or logs a clear warning and falls back to national mean."""

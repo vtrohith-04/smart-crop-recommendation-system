@@ -1,14 +1,58 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
-# Define the allowed lists of categorical values to prevent out-of-distribution inputs
-ALLOWED_CROPS = [
-    "rice", "maize", "chickpea", "kidneybeans", "pigeonpeas", "mothbeans",
-    "mungbean", "blackgram", "lentil", "pomegranate", "banana", "mango",
-    "grapes", "watermelon", "muskmelon", "apple", "orange", "papaya",
-    "coconut", "cotton", "jute", "coffee", "arecanut", "arhar/tur", "urad",
-    "moong", "gram", "sugarcane", "wheat", "potato"
+# ==========================================
+# CANONICAL CROP MAPPING & WHITELISTS
+# ==========================================
+
+# Canonical mapping from regional/common names to yield census dataset names
+CANONICAL_CROP_MAP: Dict[str, str] = {
+    "blackgram": "urad",
+    "chickpea": "gram",
+    "lentil": "masoor",
+    "mothbeans": "moth",
+    "mungbean": "moong(green gram)",
+    "moong": "moong(green gram)",
+    "pigeonpeas": "arhar/tur",
+    "cotton": "cotton(lint)",
+}
+
+def normalize_crop_name(crop: str) -> str:
+    """Normalizes crop names and maps known aliases to their canonical dataset representation."""
+    cleaned = crop.strip().lower()
+    return CANONICAL_CROP_MAP.get(cleaned, cleaned)
+
+# Inconsistent unit crops (nuts/ha or bales/ha instead of metric tons/ha)
+INCONSISTENT_UNIT_CROPS = {"coconut", "cotton(lint)", "cotton", "jute", "mesta"}
+
+# 51 Crops learned by regressor with valid metric tons/ha yield data
+SUPPORTED_YIELD_CROPS: List[str] = [
+    "arecanut", "arhar/tur", "bajra", "banana", "barley", "black pepper",
+    "cardamom", "cashewnut", "castor seed", "coriander", "cowpea(lobia)",
+    "dry chillies", "garlic", "ginger", "gram", "groundnut", "guar seed",
+    "horse-gram", "jowar", "khesari", "linseed", "maize", "masoor",
+    "moong(green gram)", "moth", "niger seed", "oilseeds total", "onion",
+    "other  rabi pulses", "other cereals", "other kharif pulses",
+    "other oilseeds", "other summer pulses", "peas & beans (pulses)",
+    "potato", "ragi", "rapeseed &mustard", "rice", "safflower",
+    "sannhamp", "sesamum", "small millets", "soyabean", "sugarcane",
+    "sunflower", "sweet potato", "tapioca", "tobacco", "turmeric",
+    "urad", "wheat"
 ]
+
+# 22 Crops output by the crop recommendation classifier
+RECOMMENDER_CROPS: List[str] = [
+    "apple", "banana", "blackgram", "chickpea", "coconut", "coffee",
+    "cotton", "grapes", "jute", "kidneybeans", "lentil", "maize",
+    "mango", "mothbeans", "mungbean", "muskmelon", "orange", "papaya",
+    "pigeonpeas", "pomegranate", "rice", "watermelon"
+]
+
+# Recognized crop pool for request validation
+ALL_RECOGNIZED_CROPS = set(SUPPORTED_YIELD_CROPS) | set(CANONICAL_CROP_MAP.keys()) | set(RECOMMENDER_CROPS)
+
+# Yield crop whitelist (supported crops for yield regression)
+ALLOWED_CROPS = list(SUPPORTED_YIELD_CROPS)
 
 ALLOWED_STATES = [
     "andaman and nicobar", "andhra pradesh", "arunachal pradesh", "assam",
@@ -53,8 +97,11 @@ class YieldPredictionInput(BaseModel):
     @classmethod
     def validate_crop(cls, v: str) -> str:
         val = v.strip().lower()
-        if val not in ALLOWED_CROPS:
-            raise ValueError(f"Crop '{v}' is not supported. Supported crops: {ALLOWED_CROPS}")
+        if val not in ALL_RECOGNIZED_CROPS and normalize_crop_name(val) not in set(SUPPORTED_YIELD_CROPS):
+            raise ValueError(
+                f"Crop '{v}' is not recognized. For the list of supported yield forecasting crops, "
+                f"call GET /supported-crops."
+            )
         return val
 
     @field_validator('state')
@@ -123,8 +170,10 @@ class CropRecommendationResponse(BaseModel):
 
 class YieldPredictionResponse(BaseModel):
     """Response model for the Crop Yield Prediction Regression Model."""
-    predicted_yield_tons_per_ha: float
-    expected_production_tons: float
+    yield_available: bool = True
+    predicted_yield_tons_per_ha: Optional[float] = None
+    expected_production_tons: Optional[float] = None
+    yield_message: Optional[str] = None
     input_parameters: Dict[str, Any]
 
 
@@ -132,6 +181,8 @@ class CombinedPredictionResponse(BaseModel):
     """Response model for the joint Recommendation and Yield Prediction endpoint."""
     recommended_crop: str
     recommendation_confidence: float
-    predicted_yield_tons_per_ha: float
-    expected_production_tons: float
+    yield_available: bool = True
+    predicted_yield_tons_per_ha: Optional[float] = None
+    expected_production_tons: Optional[float] = None
+    yield_message: Optional[str] = None
     input_parameters: Dict[str, Any]

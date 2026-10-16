@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useYieldPrediction } from '../hooks/useYieldPrediction';
+import { apiService } from '../services/api';
 import Spinner from '../components/Spinner';
 import Alert from '../components/Alert';
-// Let's copy the ALLOWED lists in js directly so we don't need imports.
-import { BarChart3, Sprout, MapPin, Calendar, HelpCircle, Layers, TrendingUp } from 'lucide-react';
+import { BarChart3, Sprout, MapPin, Calendar, HelpCircle, Layers, TrendingUp, AlertTriangle } from 'lucide-react';
 
-const CROPS = [
-  "rice", "maize", "chickpea", "kidneybeans", "pigeonpeas", "mothbeans",
-  "mungbean", "blackgram", "lentil", "pomegranate", "banana", "mango",
-  "grapes", "watermelon", "muskmelon", "apple", "orange", "papaya",
-  "coconut", "cotton", "jute", "coffee", "arecanut", "arhar/tur", "urad",
-  "moong", "gram", "sugarcane", "wheat", "potato"
+const DEFAULT_SUPPORTED_CROPS = [
+  "arecanut", "arhar/tur", "bajra", "banana", "barley", "black pepper",
+  "cardamom", "cashewnut", "castor seed", "coriander", "cowpea(lobia)",
+  "dry chillies", "garlic", "ginger", "gram", "groundnut", "guar seed",
+  "horse-gram", "jowar", "khesari", "linseed", "maize", "masoor",
+  "moong(green gram)", "moth", "niger seed", "oilseeds total", "onion",
+  "other  rabi pulses", "other cereals", "other kharif pulses",
+  "other oilseeds", "other summer pulses", "peas & beans (pulses)",
+  "potato", "ragi", "rapeseed &mustard", "rice", "safflower",
+  "sannhamp", "sesamum", "small millets", "soyabean", "sugarcane",
+  "sunflower", "sweet potato", "tapioca", "tobacco", "turmeric",
+  "urad", "wheat"
 ];
 
 const STATES = [
@@ -28,6 +34,7 @@ const SEASONS = [
 ];
 
 export default function YieldPrediction() {
+  const [supportedCrops, setSupportedCrops] = useState(DEFAULT_SUPPORTED_CROPS);
   const [formData, setFormData] = useState({
     crop: '',
     state: '',
@@ -37,6 +44,18 @@ export default function YieldPrediction() {
     fertilizer: '',
     pesticide: '',
   });
+
+  useEffect(() => {
+    apiService.getSupportedCrops()
+      .then(data => {
+        if (data && data.supported_crops && Array.isArray(data.supported_crops)) {
+          setSupportedCrops(data.supported_crops);
+        }
+      })
+      .catch(() => {
+        // Fallback to DEFAULT_SUPPORTED_CROPS
+      });
+  }, []);
 
   const {
     loading,
@@ -134,8 +153,8 @@ export default function YieldPrediction() {
                   disabled={loading}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50/20 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none text-sm transition-all duration-300 disabled:bg-gray-50 disabled:text-gray-400 capitalize"
                 >
-                  <option value="">Select Crop</option>
-                  {CROPS.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="">Select Supported Crop</option>
+                  {supportedCrops.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
@@ -278,33 +297,50 @@ export default function YieldPrediction() {
             <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-md shadow-gray-200/30 text-left relative overflow-hidden space-y-6 animate-fade-up">
               <div className="absolute top-0 right-0 h-40 w-40 bg-gradient-to-br from-emerald-100 to-emerald-200 opacity-10 blur-2xl" />
               
-              <div className="text-center border-b border-gray-100/70 pb-6">
-                <div className="inline-flex p-4 bg-emerald-50 rounded-2xl text-emerald-600 mb-4 shadow-sm shadow-emerald-500/5">
-                  <TrendingUp className="h-10 w-10 animate-pulse" />
-                </div>
-                <h3 className="text-gray-500 text-xs uppercase tracking-widest font-extrabold font-heading">Predicted Crop Yield</h3>
-                <div className="text-4xl font-extrabold text-slate-900 mt-2">
-                  {result.predicted_yield_tons_per_ha} <span className="text-sm font-semibold text-slate-400">tons/ha</span>
-                </div>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div className="flex justify-between items-center bg-gray-50 p-4.5 rounded-xl border border-gray-100">
-                  <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Acreage (Area)</div>
-                    <div className="text-lg font-bold text-slate-900 mt-0.5">{result.input_parameters.area} ha</div>
+              {result.yield_available === false ? (
+                <div className="space-y-4 text-center">
+                  <div className="inline-flex p-4 bg-amber-50 rounded-2xl text-amber-600 mb-2 shadow-sm border border-amber-100">
+                    <AlertTriangle className="h-10 w-10 text-amber-500" />
                   </div>
-                  <div className="text-right">
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Output</div>
-                    <div className="text-lg font-bold text-emerald-700 mt-0.5">{result.expected_production_tons} tons</div>
+                  <h3 className="text-gray-700 text-xs uppercase tracking-widest font-extrabold font-heading">Yield Estimate Unavailable</h3>
+                  <div className="p-4 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-900 text-sm font-semibold leading-relaxed">
+                    {result.yield_message || "No reliable yield data for this crop"}
                   </div>
+                  <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    This crop does not have reliable historical yield records in standard metric tons/hectare in the agricultural census dataset.
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <div className="text-center border-b border-gray-100/70 pb-6">
+                    <div className="inline-flex p-4 bg-emerald-50 rounded-2xl text-emerald-600 mb-4 shadow-sm shadow-emerald-500/5">
+                      <TrendingUp className="h-10 w-10 animate-pulse" />
+                    </div>
+                    <h3 className="text-gray-500 text-xs uppercase tracking-widest font-extrabold font-heading">Predicted Crop Yield</h3>
+                    <div className="text-4xl font-extrabold text-slate-900 mt-2">
+                      {result.predicted_yield_tons_per_ha} <span className="text-sm font-semibold text-slate-400">tons/ha</span>
+                    </div>
+                  </div>
 
-                <div className="bg-slate-900 text-white/95 rounded-2xl p-5 border border-slate-800 text-xs leading-relaxed space-y-2 shadow-sm">
-                  <span className="font-bold text-emerald-400 uppercase tracking-widest block font-heading">Inference Context:</span>
-                  <span>Predicted under seasonal parameters for crop <strong className="capitalize">{result.input_parameters.crop}</strong> in the state of <strong className="capitalize">{result.input_parameters.state}</strong> during <strong className="capitalize">{result.input_parameters.season}</strong>.</span>
-                </div>
-              </div>
+                  <div className="space-y-4 pt-2">
+                    <div className="flex justify-between items-center bg-gray-50 p-4.5 rounded-xl border border-gray-100">
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Acreage (Area)</div>
+                        <div className="text-lg font-bold text-slate-900 mt-0.5">{result.input_parameters.area} ha</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Output</div>
+                        <div className="text-lg font-bold text-emerald-700 mt-0.5">{result.expected_production_tons} tons</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 text-white/95 rounded-2xl p-5 border border-slate-800 text-xs leading-relaxed space-y-2 shadow-sm">
+                      <span className="font-bold text-emerald-400 uppercase tracking-widest block font-heading">Inference Context:</span>
+                      <span>Predicted under seasonal parameters for crop <strong className="capitalize">{result.input_parameters.crop}</strong> in the state of <strong className="capitalize">{result.input_parameters.state}</strong> during <strong className="capitalize">{result.input_parameters.season}</strong>.</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="h-full bg-white rounded-2xl border-2 border-dashed border-gray-200 p-8 flex flex-col justify-center items-center text-center space-y-4 min-h-[320px] shadow-sm shadow-gray-50/50">
@@ -313,7 +349,7 @@ export default function YieldPrediction() {
               </div>
               <h3 className="text-gray-800 font-heading font-bold text-base">Inference Ready</h3>
               <p className="text-gray-600 text-xs max-w-xs leading-relaxed font-semibold">
-                Provide the crop details, locations, and land area to compute agricultural yields using XGBoost regression models.
+                Provide the crop details, locations, and land area to compute agricultural yields using Scikit-Learn Random Forest regression models.
               </p>
             </div>
           )}
